@@ -1,4 +1,10 @@
 import { useEffect, useState } from "react"
+import {
+  SignedOut,
+  SignInButton,
+  UserButton,
+  useUser,
+} from "@clerk/clerk-react"
 
 import femaleIdle from "./assets/characters/female-adventurer/idle.png"
 import femaleCheer0 from "./assets/characters/female-adventurer/cheer0.png"
@@ -31,6 +37,8 @@ import zombieAttack2 from "./assets/characters/zombie/attack2.png"
 const API_URL = import.meta.env.VITE_API_URL
 
 function App() {
+  const { user } = useUser()
+
   const [xp, setXp] = useState(0)
   const [level, setLevel] = useState(1)
   const [streak, setStreak] = useState(0)
@@ -93,12 +101,14 @@ function App() {
   }, [selectedCharacter])
 
   useEffect(() => {
+    if (!user) return
+
     async function fetchData() {
       try {
-        const questResponse = await fetch(`${API_URL}/quests`)
+        const questResponse = await fetch(`${API_URL}/quests?userId=${user.id}`)
         const questData = await questResponse.json()
 
-        const playerResponse = await fetch(`${API_URL}/player`)
+        const playerResponse = await fetch(`${API_URL}/player?userId=${user.id}`)
         const playerData = await playerResponse.json()
 
         setQuests(questData)
@@ -115,10 +125,10 @@ function App() {
     }
 
     fetchData()
-  }, [])
+  }, [user])
 
   useEffect(() => {
-    if (isLoading) return
+    if (!user || isLoading) return
 
     async function createStarterQuests() {
       const dailyQuestsExist = quests.some(
@@ -158,7 +168,7 @@ function App() {
         const savedQuests = []
 
         for (const quest of starterQuests) {
-          const response = await fetch(`${API_URL}/quests`, {
+          const response = await fetch(`${API_URL}/quests?userId=${user.id}`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -177,7 +187,7 @@ function App() {
     }
 
     createStarterQuests()
-  }, [isLoading, quests])
+  }, [user, isLoading, quests])
 
   useEffect(() => {
     let frames = []
@@ -284,7 +294,7 @@ function App() {
     if (!quest || quest.completed) return
 
     try {
-      const response = await fetch(`${API_URL}/quests/${id}`, {
+      const response = await fetch(`${API_URL}/quests/${id}?userId=${user.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -335,7 +345,7 @@ function App() {
         }
       }
 
-      await fetch(`${API_URL}/player`, {
+      await fetch(`${API_URL}/player?userId=${user.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -377,7 +387,7 @@ function App() {
     try {
       setIsGeneratingQuest(true)
 
-      const response = await fetch(`${API_URL}/ai/generate-quest`, {
+      const response = await fetch(`${API_URL}/ai/generate-quest?userId=${user.id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -399,7 +409,7 @@ function App() {
         questType: generatedQuest.questType || questType,
       }
 
-      const saveResponse = await fetch(`${API_URL}/quests`, {
+      const saveResponse = await fetch(`${API_URL}/quests?userId=${user.id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -420,7 +430,7 @@ function App() {
 
   async function deleteQuest(id) {
     try {
-      await fetch(`${API_URL}/quests/${id}`, {
+      await fetch(`${API_URL}/quests/${id}?userId=${user.id}`, {
         method: "DELETE",
       })
 
@@ -541,9 +551,35 @@ function App() {
       ? 0
       : Math.round((completedQuestCount / quests.length) * 100)
 
+  if (!user) {
+    return (
+      <SignedOut>
+        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white flex flex-col items-center justify-center p-8">
+          <h1 className="text-6xl font-bold mb-4">
+            QuestLife
+          </h1>
+
+          <p className="text-slate-300 mb-8 text-center max-w-md">
+            Turn your real-life goals into RPG quests, earn XP, and level up your life.
+          </p>
+
+          <SignInButton mode="modal">
+            <button className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-xl text-lg">
+              Start Your Adventure
+            </button>
+          </SignInButton>
+        </div>
+      </SignedOut>
+    )
+  }
+
   if (!selectedCharacter) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white flex flex-col items-center justify-center p-8">
+        <div className="absolute top-6 right-6">
+          <UserButton />
+        </div>
+
         <h1 className="text-5xl font-bold mb-4">
           Choose Your Hero
         </h1>
@@ -611,6 +647,10 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white p-8">
       <div className="max-w-6xl mx-auto">
+        <div className="flex justify-end mb-4">
+          <UserButton />
+        </div>
+
         <h1 className="text-5xl font-bold mb-2">
           QuestLife
         </h1>
